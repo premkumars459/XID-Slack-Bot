@@ -42,32 +42,30 @@ secret = '5SGIyGLto1oiFBF8SDLd7pZw'
 
 @slack_event_adapter.on('app_mention')
 def handle_mention(payload):
-    print(payload)
     event = payload.get('event', {})
     channel_id = event.get('channel')
     user_id = event.get('user')
     text = event.get('text')
+    
     if user_id != None and BOT_ID == user_id:
         return
-    # print(payload['event'])
-    
-    # client.chat_postMessage(channel=channel_id, text = f'you said: {text}')
-    content = json.dumps(event, indent = 4)
 
     entityAndId = get_entity_id(event)
     if entityAndId:
         status_json = check_entity_status(entityAndId)
-        print(status_json)
         content = json.dumps(status_json, indent=4)
         client.chat_postMessage(channel=channel_id, text = content)
     else:
         client.chat_postMessage(channel=channel_id, text = 'I heard you')
 
 def check_entity_status(entityNameAndId):
-    print(entityNameAndId)
     entity_name = entityNameAndId[0]
     entity_id = entityNameAndId[1]
-    return getattr(f"check_{entity_name}_status")(entity_id)
+    switcher = {
+        "payout": check_payout_status,
+        "fav": check_fav_status
+    }
+    return switcher.get(entity_name)(entity_id)
 
 def check_payout_status(payout_id):
     URL = f"{BASE_URL}/payouts/{payout_id}"
@@ -96,14 +94,7 @@ def check_fav_status(fav_id):
 
 def get_entity_id(event):
     text = str(event.get('text'))
-
-    # print(text)
-    # print(PAYOUT_REGEX)
-    # print(match_payout_regex(text))
-
-    # prefix = f"<@{BOT_ID}> check payout pout_HrlmF38DXEvBEK"
-    # print(match_payout_regex(prefix))
-
+    text = text.replace(u'\xa0', u' ')
     if match_payout_regex(text):
         matches = match_payout_regex(text)
         prefix = f"<@{BOT_ID}> check payout "
