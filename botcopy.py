@@ -19,13 +19,16 @@ slack_event_adapter = SlackEventAdapter(
 
 client = slack.WebClient(token=os.environ['SLACK_TOKEN_'])
 
-# client.chat_postMessage(channel='#test_channel', text="first message")
+client.chat_postMessage(channel='#test_channel', text="restart")
 
 BOT_ID = client.api_call("auth.test")['user_id']
 
 BASE_URL= "https://api-dark.razorpay.com/v1"
-PAYOUT_REGEX = f"<@{BOT_ID}> check payout \S*"
-FAV_REGEX = f"<@{BOT_ID}> check fav \S*"
+PAYOUT_REGEX = f"<@{BOT_ID}> check payout \w*"
+FAV_REGEX = f"<@{BOT_ID}> check fav \w*"
+
+key = 'rzp_live_VdaE7NEl1NM0YC'
+secret = '5SGIyGLto1oiFBF8SDLd7pZw'
 
 # @slack_event_adapter.on('message')
 # def message(payload):
@@ -51,42 +54,56 @@ def handle_mention(payload):
     # client.chat_postMessage(channel=channel_id, text = f'you said: {text}')
     content = json.dumps(event, indent = 4)
 
+    entityAndId = get_entity_id(event)
+    if entityAndId:
+        status_json = check_entity_status(entityAndId)
+        print(status_json)
+        content = json.dumps(status_json, indent=4)
+        client.chat_postMessage(channel=channel_id, text = content)
+    else:
+        client.chat_postMessage(channel=channel_id, text = 'I heard you')
 
-    payout_id = get_payout_id(event)
-    if payout_id == 'return content':
-        # client.chat_postMessage(channel=channel_id, text = f'you said: {text}')
-        return
-    status_json = check_payout_status(payout_id)
-    print(status_json)
-    content = json.dumps(status_json, indent=4)
-    client.chat_postMessage(channel=channel_id, text = content)
+def check_entity_status(entityNameAndId):
+    print(entityNameAndId)
+    entity_name = entityNameAndId[0]
+    entity_id = entityNameAndId[1]
+    return getattr(f"check_{entity_name}_status")(entity_id)
 
 def check_payout_status(payout_id):
-    key = 'rzp_live_VdaE7NEl1NM0YC'
-    secret = '5SGIyGLto1oiFBF8SDLd7pZw'
-    # autherization = f"{key}:{secret}"
-
     URL = f"{BASE_URL}/payouts/{payout_id}"
     r = requests.get(url = URL, auth = (key, secret))
     return r.json()
-    
-def get_payout_id(event):
-    elements = event['blocks'][0]['elements'][0]['elements']
-    text = event.get('text')
-    if (len(elements) ==2 ):
-        print(elements)
-        target = elements[1]
-        print(target)
-        if (target['type'] == 'text'):
-            params = target['text'].split()
-            print(params)
-            if (len(params) == 2 and params[0] == 'check'):
-                return params[1]
 
-    return 'return content'
+def check_fav_status(fav_id):
+    URL = f"{BASE_URL}/fund_accounts/validations/{fav_id}"
+    r = requests.get(url = URL, auth = (key, secret))
+    return r.json()
+    
+# def get_payout_id(event):
+#     elements = event['blocks'][0]['elements'][0]['elements']
+#     text = event.get('text')
+#     if (len(elements) ==2 ):
+#         print(elements)
+#         target = elements[1]
+#         print(target)
+#         if (target['type'] == 'text'):
+#             params = target['text'].split()
+#             print(params)
+#             if (len(params) == 2 and params[0] == 'check'):
+#                 return params[1]
+
+#     return 'return content'
 
 def get_entity_id(event):
-    text = event.get('text')
+    text = str(event.get('text'))
+
+    # print(text)
+    # print(PAYOUT_REGEX)
+    # print(match_payout_regex(text))
+
+    # prefix = f"<@{BOT_ID}> check payout pout_HrlmF38DXEvBEK"
+    # print(match_payout_regex(prefix))
+
     if match_payout_regex(text):
         matches = match_payout_regex(text)
         prefix = f"<@{BOT_ID}> check payout "
